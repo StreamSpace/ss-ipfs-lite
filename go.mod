@@ -37,6 +37,12 @@ require (
 	golang.org/x/crypto v0.0.0-20200510223506-06a226fb4e37 // indirect
 	golang.org/x/net v0.0.0-20200519113804-d87ec0cfa476 // indirect
 	golang.org/x/sys v0.0.0-20200519105757-fe76b779f299 // indirect
+	github.com/libp2p/go-msgio v0.0.4
+	github.com/multiformats/go-multiaddr v0.2.2
+	github.com/multiformats/go-multihash v0.0.13
 	golang.org/x/tools v0.0.0-20200117012304-6edc0a871e69 // indirect
-	google.golang.org/protobuf v1.23.0
+	google.golang.org/protobuf v1.25.0
+	github.com/StreamSpace/swrm-scp v1.0.0
 )
+
+replace github.com/StreamSpace/swrm-scp => ./swrm-scp
