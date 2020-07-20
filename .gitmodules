@@ -1,4 +1,0 @@
-[submodule "swrm-scp"]
-	path = swrm-scp
-	url = git@github.com:StreamSpace/swrm-scp.git
-	branch = light-client
