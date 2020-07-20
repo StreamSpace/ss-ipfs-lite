@@ -9,6 +9,9 @@ require (
 	github.com/glendc/go-external-ip v0.0.0-20170425150139-139229dcdddd
 	github.com/golang/protobuf v1.4.2
 	github.com/ipfs/go-bitswap v0.2.20
+	github.com/StreamSpace/scp v1.0.0
+	github.com/glendc/go-external-ip v0.0.0-20170425150139-139229dcdddd
+	github.com/ipfs/go-bitswap v0.2.19
 	github.com/ipfs/go-blockservice v0.1.3
 	github.com/ipfs/go-cid v0.0.7
 	github.com/ipfs/go-datastore v0.4.5
@@ -20,7 +23,6 @@ require (
 	github.com/ipfs/go-ipns v0.0.2
 	github.com/ipfs/go-log/v2 v2.1.1
 	github.com/ipfs/go-merkledag v0.3.2
-	github.com/ipfs/go-peertaskqueue v0.2.0
 	github.com/ipfs/go-unixfs v0.2.4
 	github.com/libp2p/go-libp2p v0.11.0
 	github.com/libp2p/go-libp2p-connmgr v0.2.4
@@ -41,8 +43,6 @@ require (
 	github.com/multiformats/go-multiaddr v0.2.2
 	github.com/multiformats/go-multihash v0.0.13
 	golang.org/x/tools v0.0.0-20200117012304-6edc0a871e69 // indirect
-	google.golang.org/protobuf v1.25.0
-	github.com/StreamSpace/swrm-scp v1.0.0
 )
 
-replace github.com/StreamSpace/swrm-scp => ./swrm-scp
+replace github.com/StreamSpace/scp => ./scp
