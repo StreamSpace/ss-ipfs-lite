@@ -89,11 +89,14 @@ func main() {
 			start := time.Now()
 			cmd := exec.Command("lite", "-sharable",
 				fmt.Sprintf("%s", sharedObjects[randomIndex]["link"]), "-stat", "-logToStderr")
-			var out bytes.Buffer
-			cmd.Stdout = &out
+			out := new(bytes.Buffer)
+			eOut := new(bytes.Buffer)
+			cmd.Stdout = out
+			cmd.Stderr = eOut
 			err = cmd.Run()
 			if err != nil {
-				log.Fatal("command failed ", string(out.Bytes()), err.Error())
+				log.Fatal("command failed ", string(out.Bytes()), err.Error(),
+					string(eOut.Bytes()))
 			}
 			output := &StatOut{}
 			err = json.Unmarshal(out.Bytes(), output)
