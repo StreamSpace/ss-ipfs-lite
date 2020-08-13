@@ -13,9 +13,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/StreamSpace/ss-light-client/scp/engine"
-
 	ipfslite "github.com/StreamSpace/ss-light-client"
+	"github.com/StreamSpace/ss-light-client/scp/engine"
 	externalip "github.com/glendc/go-external-ip"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
@@ -34,7 +33,7 @@ const (
 	repoBase      string = ".ss_light"
 	fpSeparator   string = string(os.PathSeparator)
 	cmdSeparator  string = "%$#"
-	apiAddr       string = "http://35.190.76.147/v3/execute"
+	apiAddr       string = "http://bootstrap.streamspace.me/v3/execute"
 	peerThreshold int    = 5
 )
 
@@ -157,7 +156,7 @@ func getInfo(sharable, oldCookie string, pubKey crypto.PubKey) (*info, error) {
 	return &respData.Data, nil
 }
 
-func updateInfo(i *info) error {
+func updateInfo(i *info, timeConsumed int64) error {
 	args := map[string]interface{}{
 		"val": combineArgs(
 			cmdSeparator,
@@ -165,6 +164,7 @@ func updateInfo(i *info) error {
 			"customer",
 			"complete",
 			i.Cookie.Id,
+			fmt.Sprintf("%d", timeConsumed),
 			"-j",
 		),
 	}
@@ -192,6 +192,7 @@ func updateInfo(i *info) error {
 type LightClient struct {
 	destination string
 	repoRoot    string
+	jsonOut     bool
 	timeout     time.Duration
 
 	privKey crypto.PrivKey
@@ -202,6 +203,7 @@ type LightClient struct {
 func NewLightClient(
 	destination string,
 	timeout string,
+	jsonOut bool,
 ) (*LightClient, error) {
 
 	priv, pubk, err := crypto.GenerateKeyPair(crypto.Ed25519, 2048)
@@ -220,6 +222,7 @@ func NewLightClient(
 
 	return &LightClient{
 		destination: destination,
+		jsonOut:     jsonOut,
 		timeout:     to,
 		privKey:     priv,
 		pubKey:      pubk,
@@ -228,7 +231,7 @@ func NewLightClient(
 }
 
 type ProgressUpdater interface {
-	UpdateProgress(int)
+	UpdateProgress(int, int, int)
 }
 
 func (l *LightClient) Start(
@@ -236,23 +239,23 @@ func (l *LightClient) Start(
 	onlyInfo bool,
 	stat bool,
 	progUpd ProgressUpdater,
-) (string, error) {
+) *Out {
 	metadata, err := getInfo(sharable, "", l.pubKey)
 	if err != nil {
 		log.Errorf("Failed getting metadata Err: %s", err.Error())
-		return "Failed getting metadata", err
+		return NewOut(500, "Failed getting metadata", err.Error(), nil)
 	}
 	log.Infof("Got metadata info %+v", metadata)
 
 	if onlyInfo {
-		return fmt.Sprintf("%+v\n", metadata), nil
+		return NewOut(200, MetaInfo, "", metadata)
 	}
 
 	dst, err := os.Create(
 		combineArgs(fpSeparator, l.destination, metadata.Cookie.Filename))
 	if err != nil {
 		log.Errorf("Failed creating dest file Err: %s", err.Error())
-		return "Failed creating destination file", err
+		return NewOut(500, "Failed creating destination file", err.Error(), nil)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), l.timeout)
@@ -261,22 +264,23 @@ func (l *LightClient) Start(
 	psk, err := pnet.DecodeV1PSK(bytes.NewReader(metadata.SwarmKey))
 	if err != nil {
 		log.Errorf("Failed decoding swarm key Err: %s", err.Error())
-		return "Failed decoding swarm key provided", err
+		return NewOut(500, "Failed decoding swarm key provided", err.Error(), nil)
 	}
 
-	listen, _ := multiaddr.NewMultiaddr("/ip4/0.0.0.0/tcp/45000")
+	listenIP4, _ := multiaddr.NewMultiaddr("/ip4/0.0.0.0/tcp/45000")
+	listenIP6, _ := multiaddr.NewMultiaddr("/ip6/::/tcp/45000")
 
 	h, dht, err := ipfslite.SetupLibp2p(
 		ctx,
 		l.privKey,
 		psk,
-		[]multiaddr.Multiaddr{listen},
+		[]multiaddr.Multiaddr{listenIP4, listenIP6},
 		l.ds,
 		ipfslite.Libp2pOptionsExtra...,
 	)
 	if err != nil {
 		log.Errorf("Failed setting up libp2p node Err: %s", err.Error())
-		return "Failed setting up p2p peer", err
+		return NewOut(500, "Failed setting up p2p peer", err.Error(), nil)
 	}
 
 	cfg := &ipfslite.Config{
@@ -288,7 +292,7 @@ func (l *LightClient) Start(
 	lite, err := ipfslite.New(ctx, l.ds, h, dht, cfg)
 	if err != nil {
 		log.Errorf("Failed setting up p2p xfer node Err: %s", err.Error())
-		return "Failed setting up light client", err
+		return NewOut(500, "Failed setting up light client", err.Error(), nil)
 	}
 
 	count := lite.Bootstrap(metadata.Cookie.Leaders)
@@ -334,7 +338,7 @@ func (l *LightClient) Start(
 			select {
 			case <-ctx.Done():
 				log.Info("Client stopped while waiting for more peers")
-				return "Stopped while waiting for peers", errors.New("context cancelled")
+				return NewOut(500, "Stopped while waiting for peers", "context cancelled", nil)
 			case <-time.After(time.Second):
 				break
 			}
@@ -348,12 +352,12 @@ func (l *LightClient) Start(
 	c, err := cid.Decode(metadata.Cookie.Hash)
 	if err != nil {
 		log.Errorf("Failed decoding file hash Err: %s", err.Error())
-		return "Failed decoding filehash provided", err
+		return NewOut(500, "Failed decoding filehash provided", err.Error(), nil)
 	}
-
+	startTime := time.Now().Unix()
 	rsc, err := lite.GetFile(ctx, c)
 	if err != nil {
-		return "Failed getting file", err
+		return NewOut(500, "Failed getting file", err.Error(), nil)
 	}
 	defer rsc.Close()
 
@@ -364,7 +368,7 @@ func (l *LightClient) Start(
 				if err == nil {
 					prog := float64(st.Size()) / float64(rsc.Size()) * 100
 					log.Infof("Updating progress %d", int(prog))
-					progUpd.UpdateProgress(int(prog))
+					progUpd.UpdateProgress(int(prog), int(st.Size()), int(rsc.Size()))
 					if prog == 100 {
 						log.Infof("Progress complete")
 						return
@@ -382,18 +386,18 @@ func (l *LightClient) Start(
 
 	_, err = io.Copy(dst, rsc)
 	if err != nil {
-		return "Failed writing to destination", err
+		return NewOut(500, "Failed writing to destination", err.Error(), nil)
 	}
-
+	downloadTime := startTime - time.Now().Unix()
 	// Wait 5 secs for SCP to send all MPs. This can be optimized
 	<-time.After(time.Second * 5)
 
-	err = updateInfo(metadata)
+	err = updateInfo(metadata, downloadTime)
 	if err != nil {
 		log.Warn("Failed updating metadata after download Err: %s", err.Error())
 	}
 	if !stat {
-		return "Download complete", nil
+		return NewOut(200, DownloadSuccess, "", nil)
 	}
 	connectedPeers := []string{}
 	for _, pID := range lite.Host.Network().Peers() {
@@ -405,5 +409,5 @@ func (l *LightClient) Start(
 		Ledgers:        ledgers,
 	}
 	b, _ := json.Marshal(out)
-	return string(b), nil
+	return NewOut(200, "Stats", "", string(b))
 }

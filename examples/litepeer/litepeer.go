@@ -20,6 +20,7 @@ var (
 	stat        = flag.Bool("stat", false, "Get stat of the last fetch")
 	enableLog   = flag.Bool("logToStderr", false, "Enable app logs on stderr")
 	showProg    = flag.Bool("progress", false, "Enable progress on stdout")
+	jsonOut     = flag.Bool("json", false, "Display output in json format")
 )
 
 func returnError(err string, printUsage bool) {
@@ -77,7 +78,7 @@ func main() {
 	if len(*sharable) == 0 {
 		returnError("Sharable string not provided", true)
 	}
-	lc, err := lib.NewLightClient(*destination, *timeout)
+	lc, err := lib.NewLightClient(*destination, *timeout, *jsonOut)
 	if err != nil {
 		returnError("Failed setting up client reason:"+err.Error(), true)
 	}
@@ -86,17 +87,14 @@ func main() {
 	if !*onlyInfo && *showProg {
 		upd = &updateProgress{}
 	}
-	status, err := lc.Start(*sharable, *onlyInfo, *stat, upd)
-	if err != nil {
-		returnError(status+" reason:"+err.Error(), false)
-	}
-	fmt.Println(status)
+	out := lc.Start(*sharable, *onlyInfo, *stat, upd)
+	lib.OutMessage(out, *jsonOut)
 	return
 }
 
 type noopProgress struct{}
 
-func (u *noopProgress) UpdateProgress(p int) {
+func (u *noopProgress) UpdateProgress(p, downloadedSize, fullSize int) {
 	return
 }
 
@@ -104,11 +102,7 @@ type updateProgress struct {
 	started bool
 }
 
-func (u *updateProgress) UpdateProgress(p int) {
-	if u.started {
-		CallClear()
-	} else {
-		u.started = true
-	}
-	fmt.Printf("Progress %d%%\n", p)
+func (u *updateProgress) UpdateProgress(p, downloadedSize, fullSize int) {
+	out := lib.NewOut(200, "Progress", "", fmt.Sprintf("%d%% (%d / %d)", p, downloadedSize, fullSize))
+	lib.OutMessage(out, true)
 }
