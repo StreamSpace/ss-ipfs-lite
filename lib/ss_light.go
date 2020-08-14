@@ -11,10 +11,10 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	ipfslite "github.com/StreamSpace/ss-light-client"
-	"github.com/StreamSpace/ss-light-client/scp/engine"
 	externalip "github.com/glendc/go-external-ip"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
@@ -30,6 +30,7 @@ var log = logger.Logger("ss_light")
 
 // Constants
 const (
+	repoBase      string = ".ss_light"
 	fpSeparator   string = string(os.PathSeparator)
 	cmdSeparator  string = "%$#"
 	apiAddr       string = "http://35.244.28.138:6343/v3/execute"
@@ -44,11 +45,6 @@ type cookie struct {
 	Filename      string
 	Hash          string
 	Link          string
-}
-
-type StatOut struct {
-	ConnectedPeers []string
-	Ledgers        []*engine.SSReceipt
 }
 
 type info struct {
@@ -70,7 +66,7 @@ func (a *apiResp) UnmarshalJSON(b []byte) error {
 		Details string          `json:"details"`
 		Data    json.RawMessage `json:"data"`
 	}{}
-	log.Debugf("Raw response %s", string(b))
+	
 	err := json.Unmarshal(b, &val)
 	if err != nil {
 		return err
@@ -150,13 +146,12 @@ func getInfo(sharable, oldCookie string, pubKey crypto.PubKey) (*info, error) {
 	respData := &apiResp{}
 	err = json.Unmarshal(respBuf, &respData)
 	if err != nil {
-		log.Errorf("Failed unmarshaling result Err:%s Resp:%s", err.Error(), string(respBuf))
 		return nil, err
 	}
 	return &respData.Data, nil
 }
 
-func updateInfo(i *info, timeConsumed int64) error {
+func updateInfo(i *info) error {
 	args := map[string]interface{}{
 		"val": combineArgs(
 			cmdSeparator,
@@ -164,7 +159,6 @@ func updateInfo(i *info, timeConsumed int64) error {
 			"customer",
 			"complete",
 			i.Cookie.Id,
-			fmt.Sprintf("%d", timeConsumed),
 			"-j",
 		),
 	}
@@ -192,7 +186,6 @@ func updateInfo(i *info, timeConsumed int64) error {
 type LightClient struct {
 	destination string
 	repoRoot    string
-	jsonOut     bool
 	timeout     time.Duration
 
 	privKey crypto.PrivKey
@@ -203,7 +196,6 @@ type LightClient struct {
 func NewLightClient(
 	destination string,
 	timeout string,
-	jsonOut bool,
 ) (*LightClient, error) {
 
 	priv, pubk, err := crypto.GenerateKeyPair(crypto.Ed25519, 2048)
@@ -222,7 +214,6 @@ func NewLightClient(
 
 	return &LightClient{
 		destination: destination,
-		jsonOut:     jsonOut,
 		timeout:     to,
 		privKey:     priv,
 		pubKey:      pubk,
@@ -231,31 +222,41 @@ func NewLightClient(
 }
 
 type ProgressUpdater interface {
-	UpdateProgress(int, int, int)
+	UpdateProgress(int)
 }
 
 func (l *LightClient) Start(
 	sharable string,
 	onlyInfo bool,
-	stat bool,
 	progUpd ProgressUpdater,
-) *Out {
+) (string, error) {
 	metadata, err := getInfo(sharable, "", l.pubKey)
 	if err != nil {
 		log.Errorf("Failed getting metadata Err: %s", err.Error())
-		return NewOut(500, "Failed getting metadata", err.Error(), nil)
+		return "Failed getting metadata", err
 	}
 	log.Infof("Got metadata info %+v", metadata)
 
 	if onlyInfo {
-		return NewOut(200, MetaInfo, "", metadata)
+		return fmt.Sprintf("%+v\n", metadata), nil
 	}
+	var deststring, filename string
 
+	if l.destination == "." {
+		deststring = "."
+		filename = metadata.Cookie.Filename
+	} else {
+		dststr := strings.SplitAfterN(l.destination, "/", -1)
+		for i := 0; i < int(len(dststr)-1); i++ {
+			deststring = deststring + dststr[i]
+		}
+		filename = dststr[len(dststr)-1]
+	}
 	dst, err := os.Create(
-		combineArgs(fpSeparator, l.destination, metadata.Cookie.Filename))
+		combineArgs(fpSeparator, deststring, filename))
 	if err != nil {
 		log.Errorf("Failed creating dest file Err: %s", err.Error())
-		return NewOut(500, "Failed creating destination file", err.Error(), nil)
+		return "Failed creating destination file", err
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), l.timeout)
@@ -264,23 +265,21 @@ func (l *LightClient) Start(
 	psk, err := pnet.DecodeV1PSK(bytes.NewReader(metadata.SwarmKey))
 	if err != nil {
 		log.Errorf("Failed decoding swarm key Err: %s", err.Error())
-		return NewOut(500, "Failed decoding swarm key provided", err.Error(), nil)
+		return "Failed decoding swarm key provided", err
 	}
 
-	listenIP4, _ := multiaddr.NewMultiaddr("/ip4/0.0.0.0/tcp/45000")
 	listenIP6, _ := multiaddr.NewMultiaddr("/ip6/::/tcp/45000")
-
 	h, dht, err := ipfslite.SetupLibp2p(
 		ctx,
 		l.privKey,
 		psk,
-		[]multiaddr.Multiaddr{listenIP4, listenIP6},
+		[]multiaddr.Multiaddr{listenIP6},
 		l.ds,
 		ipfslite.Libp2pOptionsExtra...,
 	)
 	if err != nil {
 		log.Errorf("Failed setting up libp2p node Err: %s", err.Error())
-		return NewOut(500, "Failed setting up p2p peer", err.Error(), nil)
+		return "Failed setting up p2p peer", err
 	}
 
 	cfg := &ipfslite.Config{
@@ -292,7 +291,7 @@ func (l *LightClient) Start(
 	lite, err := ipfslite.New(ctx, l.ds, h, dht, cfg)
 	if err != nil {
 		log.Errorf("Failed setting up p2p xfer node Err: %s", err.Error())
-		return NewOut(500, "Failed setting up light client", err.Error(), nil)
+		return "Failed setting up light client", err
 	}
 
 	count := lite.Bootstrap(metadata.Cookie.Leaders)
@@ -338,7 +337,7 @@ func (l *LightClient) Start(
 			select {
 			case <-ctx.Done():
 				log.Info("Client stopped while waiting for more peers")
-				return NewOut(500, "Stopped while waiting for peers", "context cancelled", nil)
+				return "Stopped while waiting for peers", errors.New("context cancelled")
 			case <-time.After(time.Second):
 				break
 			}
@@ -352,12 +351,12 @@ func (l *LightClient) Start(
 	c, err := cid.Decode(metadata.Cookie.Hash)
 	if err != nil {
 		log.Errorf("Failed decoding file hash Err: %s", err.Error())
-		return NewOut(500, "Failed decoding filehash provided", err.Error(), nil)
+		return "Failed decoding filehash provided", err
 	}
-	startTime := time.Now().Unix()
+
 	rsc, err := lite.GetFile(ctx, c)
 	if err != nil {
-		return NewOut(500, "Failed getting file", err.Error(), nil)
+		return "Failed getting file", err
 	}
 	defer rsc.Close()
 
@@ -368,7 +367,7 @@ func (l *LightClient) Start(
 				if err == nil {
 					prog := float64(st.Size()) / float64(rsc.Size()) * 100
 					log.Infof("Updating progress %d", int(prog))
-					progUpd.UpdateProgress(int(prog), int(st.Size()), int(rsc.Size()))
+					progUpd.UpdateProgress(int(prog))
 					if prog == 100 {
 						log.Infof("Progress complete")
 						return
@@ -386,28 +385,15 @@ func (l *LightClient) Start(
 
 	_, err = io.Copy(dst, rsc)
 	if err != nil {
-		return NewOut(500, "Failed writing to destination", err.Error(), nil)
+		return "Failed writing to destination", err
 	}
-	downloadTime := time.Now().Unix() - startTime
+
 	// Wait 5 secs for SCP to send all MPs. This can be optimized
 	<-time.After(time.Second * 5)
 
-	err = updateInfo(metadata, downloadTime)
+	err = updateInfo(metadata)
 	if err != nil {
 		log.Warn("Failed updating metadata after download Err: %s", err.Error())
 	}
-	if !stat {
-		return NewOut(200, DownloadSuccess, "", nil)
-	}
-	connectedPeers := []string{}
-	for _, pID := range lite.Host.Network().Peers() {
-		connectedPeers = append(connectedPeers, pID.String())
-	}
-	ledgers, _ := lite.Scp.GetMicroPayments()
-	out := StatOut{
-		ConnectedPeers: connectedPeers,
-		Ledgers:        ledgers,
-	}
-	b, _ := json.Marshal(out)
-	return NewOut(200, "Stats", "", string(b))
+	return "Download complete", nil
 }
