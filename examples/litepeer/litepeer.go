@@ -15,13 +15,13 @@ import (
 var (
 	destination = flag.String("dst", ".", "Path to store downloaded file")
 	sharable    = flag.String("sharable", "", "Sharable string provided for file")
-	timeout     = flag.String("timeout", "15m", "Timeout duration")
+	timeout     = flag.String("timeout", "15m", "Timeout duration for download")
 	onlyInfo    = flag.Bool("info", false, "Get only fetch info")
 	stat        = flag.Bool("stat", false, "Get stat of the last fetch")
 	enableLog   = flag.Bool("logToStderr", false, "Enable app logs on stderr")
 	showProg    = flag.Bool("progress", false, "Enable progress on stdout")
 	jsonOut     = flag.Bool("json", false, "Display output in json format")
-	help        = flag.Bool("help", false, "Show usage")
+	help        = flag.Bool("help", false, "Show command usage")
 )
 
 func returnError(err string, printUsage bool) {
@@ -40,7 +40,51 @@ Usage:
 Options:
 		`)
 	flag.PrintDefaults()
-	fmt.Println()
+	fmt.Println(`
+Description:
+
+The light-client will download a file from Hive dcdn based on the provided 
+sharable link. By default the downloaded file will be in the same location 
+as the light-client binary itself.
+
+    > ./ss-light -sharable fzhnp4jhFnMUKVGMKpt4kBMrvX
+
+To save the binary in a custom location, you need to provide the path in '-dst' 
+flag. 
+
+    > ./ss-light -dst $HOME -sharable fzhnp4jhFnMUKVGMKpt4kBMrvX
+
+To only see the link information you add the '-info' flag.
+
+    > ./ss-light -info -sharable fzhnp4jhFnMUKVGMKpt4kBMrvX
+
+By default light-client returns normal text as output. If you need a json output 
+add '-json' flag with your command.
+
+    > ./ss-light -sharable fzhnp4jhFnMUKVGMKpt4kBMrvX -json
+  
+To see the download progress use '-progress' flag.
+
+    > ./ss-light -dst $HOME -sharable fzhnp4jhFnMUKVGMKpt4kBMrvX -progress
+
+To see the logs of the command use '-logToStderr' flag. Note : '-logToStderr' and 
+'-progress' flags cannot be used together.
+
+    > ./ss-light -dst $HOME -sharable fzhnp4jhFnMUKVGMKpt4kBMrvX -logToStderr
+ 
+To see the connected peers and ledger for the last download use '-stat' flag.
+
+    > ./ss-light -dst $HOME -sharable fzhnp4jhFnMUKVGMKpt4kBMrvX -stat
+  
+Depending on hiver nodes availability download might take some time. you can set a minimum 
+timeout for the download to finish. default is 15m.
+ 	
+    > ./ss-light -dst $HOME -sharable fzhnp4jhFnMUKVGMKpt4kBMrvX -timeout 5m
+
+To see usage
+
+    > ./ss-light -help
+`)
 }
 
 var clear map[string]func() //create a map for storing clear funcs
