@@ -21,20 +21,26 @@ var (
 	enableLog   = flag.Bool("logToStderr", false, "Enable app logs on stderr")
 	showProg    = flag.Bool("progress", false, "Enable progress on stdout")
 	jsonOut     = flag.Bool("json", false, "Display output in json format")
+	help        = flag.Bool("help", false, "Show usage")
 )
 
 func returnError(err string, printUsage bool) {
 	fmt.Println("ERR: " + err)
 	if printUsage {
-		fmt.Println(`
+		usage()
+	}
+	os.Exit(1)
+}
+
+func usage() {
+	fmt.Println(`
 Usage:
 	./ss-light <OPTIONS>
 
 Options:
 		`)
-		flag.PrintDefaults()
-	}
-	os.Exit(1)
+	flag.PrintDefaults()
+	fmt.Println()
 }
 
 var clear map[string]func() //create a map for storing clear funcs
@@ -69,6 +75,11 @@ func CallClear() {
 
 func main() {
 	flag.Parse()
+
+	if *help {
+		usage()
+		return
+	}
 
 	if *enableLog && *showProg {
 		returnError("Log and progress options cannot be used together", true)

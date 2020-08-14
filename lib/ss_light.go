@@ -30,10 +30,9 @@ var log = logger.Logger("ss_light")
 
 // Constants
 const (
-	repoBase      string = ".ss_light"
 	fpSeparator   string = string(os.PathSeparator)
 	cmdSeparator  string = "%$#"
-	apiAddr       string = "http://bootstrap.streamspace.me/v3/execute"
+	apiAddr       string = "http://35.244.28.138:6343/v3/execute"
 	peerThreshold int    = 5
 )
 
@@ -388,7 +387,7 @@ func (l *LightClient) Start(
 	if err != nil {
 		return NewOut(500, "Failed writing to destination", err.Error(), nil)
 	}
-	downloadTime := startTime - time.Now().Unix()
+	downloadTime := time.Now().Unix() - startTime
 	// Wait 5 secs for SCP to send all MPs. This can be optimized
 	<-time.After(time.Second * 5)
 
