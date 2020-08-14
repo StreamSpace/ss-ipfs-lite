@@ -150,6 +150,7 @@ func getInfo(sharable, oldCookie string, pubKey crypto.PubKey) (*info, error) {
 	respData := &apiResp{}
 	err = json.Unmarshal(respBuf, &respData)
 	if err != nil {
+		log.Errorf("Failed unmarshaling result Err:%s Resp:%s", err.Error(), string(respBuf))
 		return nil, err
 	}
 	return &respData.Data, nil
