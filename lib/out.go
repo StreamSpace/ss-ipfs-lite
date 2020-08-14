@@ -36,14 +36,13 @@ var (
 func OutMessage(cliOut *Out, jFlag bool) {
 	if jFlag {
 		j, _ := json.MarshalIndent(cliOut, "", "\t")
-
 		fmt.Println(string(j))
 		return
 	}
-	fmt.Println(cliOut.Message)
+	fmt.Printf("%s ", cliOut.Message)
 	if cliOut.Data != nil {
-		prettyVal, _ := json.MarshalIndent(cliOut.Data, "", "\t")
-		fmt.Println(string(prettyVal))
+		fmt.Println(cliOut.Data)
 		return
 	}
+	fmt.Println()
 }

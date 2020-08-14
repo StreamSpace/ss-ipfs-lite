@@ -85,7 +85,9 @@ func main() {
 	var upd lib.ProgressUpdater
 	upd = &noopProgress{}
 	if !*onlyInfo && *showProg {
-		upd = &updateProgress{}
+		upd = &updateProgress{
+			jsonOut: *jsonOut,
+		}
 	}
 	out := lc.Start(*sharable, *onlyInfo, *stat, upd)
 	lib.OutMessage(out, *jsonOut)
@@ -100,9 +102,12 @@ func (u *noopProgress) UpdateProgress(p, downloadedSize, fullSize int) {
 
 type updateProgress struct {
 	started bool
+	jsonOut bool
 }
 
 func (u *updateProgress) UpdateProgress(p, downloadedSize, fullSize int) {
-	out := lib.NewOut(200, "Progress", "", fmt.Sprintf("%d%% (%d / %d)", p, downloadedSize, fullSize))
-	lib.OutMessage(out, true)
+	dMB := float32(downloadedSize) / (1024 * 1024)
+	fMB := float32(fullSize) / (1024 * 1024)
+	out := lib.NewOut(200, "Progress", "", fmt.Sprintf("%d%% (%.2fMB / %.2fMB)", p, dMB, fMB))
+	lib.OutMessage(out, u.jsonOut)
 }
