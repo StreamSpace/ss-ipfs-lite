@@ -13,7 +13,7 @@ import (
 
 // Command arguments
 var (
-	destination = flag.String("dst", ".", "Path to store downloaded file")
+	destination = flag.String("dst", ".", "Filename to store downloaded file")
 	sharable    = flag.String("sharable", "", "Sharable string provided for file")
 	timeout     = flag.String("timeout", "15m", "Timeout duration for download")
 	onlyInfo    = flag.Bool("info", false, "Get only fetch info")
@@ -49,10 +49,11 @@ as the light-client binary itself.
 
     > ./ss-light -sharable fzhnp4jhFnMUKVGMKpt4kBMrvX
 
-To save the binary in a custom location, you need to provide the path in '-dst' 
-flag. 
+To save the binary in a custom location with a custom name, you need to provide 
+the path along with the filename in '-dst' flag.  By default the file will be 
+saved where the binary is with the default filename. 
 
-    > ./ss-light -dst $HOME -sharable fzhnp4jhFnMUKVGMKpt4kBMrvX
+    > ./ss-light -dst $HOME/greeter.txt -sharable fzhnp4jhFnMUKVGMKpt4kBMrvX
 
 To only see the link information you add the '-info' flag.
 
@@ -65,21 +66,21 @@ add '-json' flag with your command.
   
 To see the download progress use '-progress' flag.
 
-    > ./ss-light -dst $HOME -sharable fzhnp4jhFnMUKVGMKpt4kBMrvX -progress
+    > ./ss-light -dst $HOME/greeter.txt -sharable fzhnp4jhFnMUKVGMKpt4kBMrvX -progress
 
 To see the logs of the command use '-logToStderr' flag. Note : '-logToStderr' and 
 '-progress' flags cannot be used together.
 
-    > ./ss-light -dst $HOME -sharable fzhnp4jhFnMUKVGMKpt4kBMrvX -logToStderr
+    > ./ss-light -dst $HOME/greeter.txt -sharable fzhnp4jhFnMUKVGMKpt4kBMrvX -logToStderr
  
 To see the connected peers and ledger for the last download use '-stat' flag.
 
-    > ./ss-light -dst $HOME -sharable fzhnp4jhFnMUKVGMKpt4kBMrvX -stat
+    > ./ss-light -dst $HOME/greeter.txt -sharable fzhnp4jhFnMUKVGMKpt4kBMrvX -stat
   
 Depending on hiver nodes availability download might take some time. you can set a minimum 
 timeout for the download to finish. default is 15m.
  	
-    > ./ss-light -dst $HOME -sharable fzhnp4jhFnMUKVGMKpt4kBMrvX -timeout 5m
+    > ./ss-light -dst $HOME/greeter.txt -sharable fzhnp4jhFnMUKVGMKpt4kBMrvX -timeout 5m
 
 To see usage
 

@@ -246,13 +246,13 @@ func (l *LightClient) Start(
 		return NewOut(500, "Failed getting metadata", err.Error(), nil)
 	}
 	log.Infof("Got metadata info %+v", metadata)
-
 	if onlyInfo {
 		return NewOut(200, MetaInfo, "", metadata)
 	}
-
-	dst, err := os.Create(
-		combineArgs(fpSeparator, l.destination, metadata.Cookie.Filename))
+	if l.destination == "." {
+		l.destination = combineArgs(fpSeparator, l.destination, metadata.Cookie.Filename)
+	}
+	dst, err := os.Create(l.destination)
 	if err != nil {
 		log.Errorf("Failed creating dest file Err: %s", err.Error())
 		return NewOut(500, "Failed creating destination file", err.Error(), nil)
@@ -269,7 +269,6 @@ func (l *LightClient) Start(
 
 	listenIP4, _ := multiaddr.NewMultiaddr("/ip4/0.0.0.0/tcp/45000")
 	listenIP6, _ := multiaddr.NewMultiaddr("/ip6/::/tcp/45000")
-
 	h, dht, err := ipfslite.SetupLibp2p(
 		ctx,
 		l.privKey,
