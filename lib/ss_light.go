@@ -34,6 +34,11 @@ const (
 	cmdSeparator  string = "%$#"
 	apiAddr       string = "http://35.244.28.138:6343/v3/execute"
 	peerThreshold int    = 5
+
+	success       = 200
+	internalError = 500
+	timeoutError  = 504
+	serviceError  = 503
 )
 
 // API objects
@@ -49,6 +54,7 @@ type cookie struct {
 type StatOut struct {
 	ConnectedPeers []string
 	Ledgers        []*engine.SSReceipt
+	DownloadTime   int
 }
 
 type info struct {
@@ -243,11 +249,15 @@ func (l *LightClient) Start(
 	metadata, err := getInfo(sharable, "", l.pubKey)
 	if err != nil {
 		log.Errorf("Failed getting metadata Err: %s", err.Error())
-		return NewOut(500, "Failed getting metadata", err.Error(), nil)
+		return NewOut(serviceError, "Failed getting metadata", err.Error(), nil)
 	}
+
+	// STEP : Got metadata
+	showStep(success, "Got metadata", l.jsonOut)
+
 	log.Infof("Got metadata info %+v", metadata)
 	if onlyInfo {
-		return NewOut(200, MetaInfo, "", metadata)
+		return NewOut(success, MetaInfo, "", metadata)
 	}
 	if l.destination == "." {
 		l.destination = combineArgs(fpSeparator, l.destination, metadata.Cookie.Filename)
@@ -255,7 +265,7 @@ func (l *LightClient) Start(
 	dst, err := os.Create(l.destination)
 	if err != nil {
 		log.Errorf("Failed creating dest file Err: %s", err.Error())
-		return NewOut(500, "Failed creating destination file", err.Error(), nil)
+		return NewOut(internalError, "Failed creating destination file", err.Error(), nil)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), l.timeout)
@@ -264,7 +274,7 @@ func (l *LightClient) Start(
 	psk, err := pnet.DecodeV1PSK(bytes.NewReader(metadata.SwarmKey))
 	if err != nil {
 		log.Errorf("Failed decoding swarm key Err: %s", err.Error())
-		return NewOut(500, "Failed decoding swarm key provided", err.Error(), nil)
+		return NewOut(internalError, "Failed decoding swarm key provided", err.Error(), nil)
 	}
 
 	listenIP4, _ := multiaddr.NewMultiaddr("/ip4/0.0.0.0/tcp/45000")
@@ -279,8 +289,11 @@ func (l *LightClient) Start(
 	)
 	if err != nil {
 		log.Errorf("Failed setting up libp2p node Err: %s", err.Error())
-		return NewOut(500, "Failed setting up p2p peer", err.Error(), nil)
+		return NewOut(internalError, "Failed setting up p2p peer", err.Error(), nil)
 	}
+
+	// STEP : Host Created
+	showStep(success, "Host created", l.jsonOut)
 
 	cfg := &ipfslite.Config{
 		Mtdt: map[string]interface{}{
@@ -291,10 +304,17 @@ func (l *LightClient) Start(
 	lite, err := ipfslite.New(ctx, l.ds, h, dht, cfg)
 	if err != nil {
 		log.Errorf("Failed setting up p2p xfer node Err: %s", err.Error())
-		return NewOut(500, "Failed setting up light client", err.Error(), nil)
+		return NewOut(internalError, "Failed setting up light client", err.Error(), nil)
 	}
 
+	// STEP : Download agent created
+	showStep(success, "Download agent created", l.jsonOut)
+
 	count := lite.Bootstrap(metadata.Cookie.Leaders)
+
+	// STEP : Bootstrap done
+	showStep(success, "Bootstrapped", l.jsonOut)
+
 	if count < peerThreshold {
 		go func() {
 			start := time.Now()
@@ -303,6 +323,9 @@ func (l *LightClient) Start(
 				case <-ctx.Done():
 					return
 				case <-time.After(time.Second * 30):
+					// STEP : Re-fetching metadata
+					showStep(success, "Re-fetching metadata", l.jsonOut)
+
 					// Allow 30 seconds to see if new leaders were added
 					newMtdt, err := getInfo(sharable, metadata.Cookie.Id, l.pubKey)
 					if err == nil && len(newMtdt.Cookie.Leaders) > count {
@@ -321,9 +344,13 @@ func (l *LightClient) Start(
 							}
 						}
 						count += lite.Bootstrap(newLeadersToAdd)
+						// STEP : Re-Bootstrap done
+						showStep(success, "Re-Bootstrapped", l.jsonOut)
+
 					}
 					if time.Since(start) > time.Minute*15 {
 						log.Warn("Tried getting more peers for 15mins")
+						showStep(timeoutError, "Download timed out", l.jsonOut)
 						return
 					}
 				}
@@ -337,7 +364,7 @@ func (l *LightClient) Start(
 			select {
 			case <-ctx.Done():
 				log.Info("Client stopped while waiting for more peers")
-				return NewOut(500, "Stopped while waiting for peers", "context cancelled", nil)
+				return NewOut(internalError, "Stopped while waiting for peers", "context cancelled", nil)
 			case <-time.After(time.Second):
 				break
 			}
@@ -351,8 +378,12 @@ func (l *LightClient) Start(
 	c, err := cid.Decode(metadata.Cookie.Hash)
 	if err != nil {
 		log.Errorf("Failed decoding file hash Err: %s", err.Error())
-		return NewOut(500, "Failed decoding filehash provided", err.Error(), nil)
+		return NewOut(internalError, "Failed decoding filehash provided", err.Error(), nil)
 	}
+
+	// STEP : Starting Download
+	showStep(success, "Starting download", l.jsonOut)
+
 	startTime := time.Now().Unix()
 	rsc, err := lite.GetFile(ctx, c)
 	if err != nil {
@@ -385,9 +416,14 @@ func (l *LightClient) Start(
 
 	_, err = io.Copy(dst, rsc)
 	if err != nil {
-		return NewOut(500, "Failed writing to destination", err.Error(), nil)
+		return NewOut(internalError, "Failed writing to destination", err.Error(), nil)
 	}
 	downloadTime := time.Now().Unix() - startTime
+	// STEP : Download Finished
+	showStep(success, "Finished download", l.jsonOut)
+
+	// STEP : Waiting for micropayments clean up
+	showStep(success, "Sending micropayments", l.jsonOut)
 	// Wait 5 secs for SCP to send all MPs. This can be optimized
 	<-time.After(time.Second * 5)
 
@@ -395,6 +431,9 @@ func (l *LightClient) Start(
 	if err != nil {
 		log.Warn("Failed updating metadata after download Err: %s", err.Error())
 	}
+	// STEP : Updated Cookie
+	showStep(success, "Updating cookie", l.jsonOut)
+
 	if !stat {
 		return NewOut(200, DownloadSuccess, "", nil)
 	}
@@ -406,7 +445,12 @@ func (l *LightClient) Start(
 	out := StatOut{
 		ConnectedPeers: connectedPeers,
 		Ledgers:        ledgers,
+		DownloadTime:   int(downloadTime),
 	}
-	b, _ := json.Marshal(out)
-	return NewOut(200, "Stats", "", string(b))
+	return NewOut(success, "Stats", "", out)
+}
+
+func showStep(status int, message string, jsonOut bool) {
+	out := NewOut(success, message, "", nil)
+	OutMessage(out, jsonOut)
 }
