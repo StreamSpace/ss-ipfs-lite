@@ -13,7 +13,7 @@ import (
 
 // Command arguments
 var (
-	destination = flag.String("dst", ".", "Filename to store downloaded file")
+	destination = flag.String("dst", ".", "Complete file path on disk to store downloaded file")
 	sharable    = flag.String("sharable", "", "Sharable string provided for file")
 	timeout     = flag.String("timeout", "15m", "Timeout duration for download")
 	onlyInfo    = flag.Bool("info", false, "Get only fetch info")
