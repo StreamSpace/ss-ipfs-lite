@@ -291,10 +291,6 @@ func (l *LightClient) Start(
 		log.Errorf("Failed setting up libp2p node Err: %s", err.Error())
 		return NewOut(internalError, "Failed setting up p2p peer", err.Error(), nil)
 	}
-
-	// STEP : Host Created
-	showStep(success, "Host created", l.jsonOut)
-
 	cfg := &ipfslite.Config{
 		Mtdt: map[string]interface{}{
 			"download_index": metadata.Cookie.DownloadIndex,
@@ -323,35 +319,16 @@ func (l *LightClient) Start(
 				case <-ctx.Done():
 					return
 				case <-time.After(time.Second * 30):
-					// STEP : Re-fetching metadata
-					showStep(success, "Re-fetching metadata", l.jsonOut)
-
-					// Allow 30 seconds to see if new leaders were added
-					newMtdt, err := getInfo(sharable, metadata.Cookie.Id, l.pubKey)
-					if err == nil && len(newMtdt.Cookie.Leaders) > count {
-						log.Infof("Got %d new leaders", len(newMtdt.Cookie.Leaders)-count)
-						newLeadersToAdd := []peer.AddrInfo{}
-						for _, v := range newMtdt.Cookie.Leaders {
-							found := false
-							for _, x := range metadata.Cookie.Leaders {
-								if x.ID == v.ID {
-									found = true
-									break
-								}
-							}
-							if !found {
-								newLeadersToAdd = append(newLeadersToAdd, v)
-							}
-						}
-						count += lite.Bootstrap(newLeadersToAdd)
-						// STEP : Re-Bootstrap done
-						showStep(success, "Re-Bootstrapped", l.jsonOut)
-
-					}
 					if time.Since(start) > time.Minute*15 {
 						log.Warn("Tried getting more peers for 15mins")
 						showStep(timeoutError, "Download timed out", l.jsonOut)
 						return
+					}
+					// Try to re-bootstrap if client was unable to bootstrap previously
+					if count < len(metadata.Cookie.Leaders) {
+						count += lite.Bootstrap(metadata.Cookie.Leaders)
+						// STEP : Re-Bootstrap done
+						showStep(success, "Re-Bootstrapped", l.jsonOut)
 					}
 				}
 			}
@@ -419,11 +396,9 @@ func (l *LightClient) Start(
 		return NewOut(internalError, "Failed writing to destination", err.Error(), nil)
 	}
 	downloadTime := time.Now().Unix() - startTime
-	// STEP : Download Finished
-	showStep(success, "Finished download", l.jsonOut)
 
 	// STEP : Waiting for micropayments clean up
-	showStep(success, "Sending micropayments", l.jsonOut)
+	showStep(success, "Finishing download", l.jsonOut)
 	// Wait 5 secs for SCP to send all MPs. This can be optimized
 	<-time.After(time.Second * 5)
 
