@@ -35,10 +35,11 @@ const (
 	apiAddr       string = "http://35.244.28.138:6343/v3/execute"
 	peerThreshold int    = 5
 
-	success       = 200
-	internalError = 500
-	timeoutError  = 504
-	serviceError  = 503
+	success        = 200
+	internalError  = 500
+	timeoutError   = 504
+	serviceError   = 503
+	destinationErr = 404
 )
 
 // API objects
@@ -265,7 +266,7 @@ func (l *LightClient) Start(
 	dst, err := os.Create(l.destination)
 	if err != nil {
 		log.Errorf("Failed creating dest file Err: %s", err.Error())
-		return NewOut(internalError, "Failed creating destination file", err.Error(), nil)
+		return NewOut(destinationErr, "Failed creating destination file", err.Error(), nil)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), l.timeout)
@@ -304,12 +305,12 @@ func (l *LightClient) Start(
 	}
 
 	// STEP : Download agent created
-	showStep(success, "Download agent created", l.jsonOut)
+	showStep(success, "Download agent initialized", l.jsonOut)
 
 	count := lite.Bootstrap(metadata.Cookie.Leaders)
 
 	// STEP : Bootstrap done
-	showStep(success, "Bootstrapped", l.jsonOut)
+	showStep(success, "Bootstrapped agent", l.jsonOut)
 
 	if count < peerThreshold {
 		go func() {
@@ -325,10 +326,13 @@ func (l *LightClient) Start(
 						return
 					}
 					// Try to re-bootstrap if client was unable to bootstrap previously
+					oldCount := count
 					if count < len(metadata.Cookie.Leaders) {
-						count += lite.Bootstrap(metadata.Cookie.Leaders)
+						count = lite.Bootstrap(metadata.Cookie.Leaders)
 						// STEP : Re-Bootstrap done
-						showStep(success, "Re-Bootstrapped", l.jsonOut)
+						if count > oldCount {
+							showStep(success, "Found more peers to connect", l.jsonOut)
+						}
 					}
 				}
 			}
@@ -406,9 +410,6 @@ func (l *LightClient) Start(
 	if err != nil {
 		log.Warn("Failed updating metadata after download Err: %s", err.Error())
 	}
-	// STEP : Updated Cookie
-	showStep(success, "Updating cookie", l.jsonOut)
-
 	if !stat {
 		return NewOut(200, DownloadSuccess, "", nil)
 	}
