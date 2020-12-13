@@ -126,7 +126,7 @@ func getInfo(sharable string, pubKey crypto.PubKey) (*info, error) {
 }
 
 func updateInfo(i *info, timeConsumed int64) error {
-	completeUrl := fmt.Spprod / rintf("%s/%s?cookie=%s&time=%d",
+	completeUrl := fmt.Sprintf("%s/%s?cookie=%s&time=%d",
 		ApiAddr, completePath, i.Cookie.Id, timeConsumed)
 	resp, err := http.Post(completeUrl, "application/json", nil)
 	if err != nil {
