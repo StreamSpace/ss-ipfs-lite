@@ -237,7 +237,7 @@ func (l *LightClient) Start(
 		go func() {
 			defer wg.Done()
 			select {
-			case <-time.After(time.Minute * 2):
+			case <-time.After(time.Minute * 3):
 				cancel()
 			case <-ready:
 				redo = false
