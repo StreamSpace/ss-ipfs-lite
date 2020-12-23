@@ -14,9 +14,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/StreamSpace/scp"
+	"github.com/StreamSpace/scp/engine"
 	ipfslite "github.com/StreamSpace/ss-light-client"
-	"github.com/StreamSpace/ss-light-client/scp"
-	"github.com/StreamSpace/ss-light-client/scp/engine"
 	externalip "github.com/glendc/go-external-ip"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
