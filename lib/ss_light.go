@@ -30,7 +30,7 @@ import (
 
 var log = logger.Logger("ss_light")
 
-var ApiAddr string = "http://bootstrap.swrmlabs.io"
+var ApiAddr string = "https://boot.swrmlabs.io"
 
 // Constants
 const (
