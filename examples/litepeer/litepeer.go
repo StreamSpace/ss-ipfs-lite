@@ -127,12 +127,10 @@ func main() {
 		usage()
 		return
 	}
-
 	if *version {
 		fmt.Printf("%s-%s\n", vs.Env, vs.Commit)
 		return
 	}
-
 	if *enableLog && *showProg {
 		returnError("Log and progress options cannot be used together", true)
 	} else if *enableLog {
