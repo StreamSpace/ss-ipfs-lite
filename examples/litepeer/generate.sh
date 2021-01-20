@@ -1,7 +1,6 @@
 #!/bin/bash
 
 # Constants required for environments
-PKG=github.com/StreamSpace/ss-light-client/examples/litepeer/version
 EPOCH=2020-07-01T00:00:00Z
 CYCLE=24h
 API=http://bootstrap.swrmlabs.io
@@ -13,12 +12,13 @@ if [ "$1" = "qa" ]; then
    OUT=qa
 fi
 
-commit=$(git describe --always --match=NeVeRmAtCh --dirty 2>/dev/null || git rev-parse --short HEAD 2>/dev/null)
+COMMIT=$(git describe --always --match=NeVeRmAtCh --dirty 2>/dev/null || git rev-parse --short HEAD 2>/dev/null)
 # PKG path for overriding constants
 SCP=github.com/StreamSpace/scp/config
 LIB=github.com/StreamSpace/ss-light-client/lib
+PKG=github.com/StreamSpace/ss-light-client/examples/litepeer/version
 
-LDFLAGS="-w -s -X $PKG.Commit=$commit -X $PKG.Env=$OUT -X $SCP.Epoch=$EPOCH -X $SCP.CycleDuration=$CYCLE -X $LIB.ApiAddr=$API"
+LDFLAGS="-w -s -X $PKG.Commit=$COMMIT -X $PKG.Env=$OUT -X $SCP.Epoch=$EPOCH -X $SCP.CycleDuration=$CYCLE -X $LIB.ApiAddr=$API"
 
 echo "Generating binaries with Config $EPOCH $CYCLE $API"
 GOOS=darwin GOARCH=amd64 go build -ldflags "$LDFLAGS" -o $OUT/swrm-client-darwin-amd64 litepeer.go

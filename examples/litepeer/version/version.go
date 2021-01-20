@@ -1,4 +1,4 @@
 package version
 
 var Commit string = ""
-var Env string ="prod"
+var Env string = "prod"
